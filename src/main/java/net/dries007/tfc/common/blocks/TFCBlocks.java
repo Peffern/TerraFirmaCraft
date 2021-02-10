@@ -145,7 +145,7 @@ public final class TFCBlocks
     );
 
     public static final Map<Crop, RegistryObject<Block>> CROPS = Helpers.mapOfKeys(Crop.class, crop ->
-        register(("crop/" + crop.name()).toLowerCase(), crop::create, block -> new BlockNamedItem(block, new Item.Properties().tab(FLORA)))
+        register(("crop/" + crop.name()).toLowerCase(), crop::create)
     );
 
     public static final Map<Crop, RegistryObject<Block>> DEAD_CROPS = Helpers.mapOfKeys(Crop.class, crop ->
