@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.CropsBlock;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -196,6 +197,15 @@ public abstract class CropBlock extends CropsBlock implements IHoeOverlayBlock, 
     public TileEntity createTileEntity(BlockState state, IBlockReader world)
     {
         return hasTileEntity(state) ? new CropTileEntity() : null;
+    }
+
+    @Override
+    public void setPlacedBy(World world, BlockPos pos, BlockState state, @Nullable LivingEntity entity, ItemStack stack)
+    {
+        if(!world.isClientSide())
+        {
+            Helpers.getTileEntityOrThrow(world, pos, CropTileEntity.class).setLastTick(Calendars.SERVER.getTicks());
+        }
     }
 
     @Override

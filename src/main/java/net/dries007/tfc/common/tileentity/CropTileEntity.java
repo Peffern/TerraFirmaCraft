@@ -14,7 +14,7 @@ public class CropTileEntity extends TickCounterTileEntity
 
     public CropTileEntity()
     {
-        super(TFCTileEntities.CROP.get());
+        this(TFCTileEntities.CROP.get());
     }
 
     protected CropTileEntity(TileEntityType<?> type)
