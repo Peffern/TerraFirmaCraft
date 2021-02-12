@@ -237,49 +237,63 @@ public abstract class CropBlock extends CropsBlock implements IHoeOverlayBlock, 
 
         // Update the crop based on the last time it was ticked
         // todo: other checks here (temperature, mostly)
-        if (canGrow(farmlandMoisture))
+        if(canLive())
         {
-            float growthDelta = crop.getGrowthVariation() * tickDelta / DEFAULT_CROP_GROWTH_TICKS;
-            float yieldDelta = growthDelta * 0.25f; // Default yield modifier
-
-            FarmlandTileEntity farmlandTileEntity = Helpers.getTileEntity(worldIn, belowPos, FarmlandTileEntity.class);
-            if (farmlandTileEntity != null)
+            if (canGrow(farmlandMoisture))
             {
-                // Modifiers due to nutrients
-                float availablePrimaryNutrient = farmlandTileEntity.getNutrient(primaryNutrient);
-                float usedPrimaryNutrient = Math.min(growthDelta, availablePrimaryNutrient);
-                float usedAllNutrients = farmlandTileEntity.consumeAll(growthDelta);
+                float growthDelta = crop.getGrowthVariation() * tickDelta / DEFAULT_CROP_GROWTH_TICKS;
+                float yieldDelta = growthDelta * 0.25f; // Default yield modifier
 
-                // Bonus growth due to primary nutrient
-                growthDelta += 0.5f * usedPrimaryNutrient;
+                FarmlandTileEntity farmlandTileEntity = Helpers.getTileEntity(worldIn, belowPos, FarmlandTileEntity.class);
+                if (farmlandTileEntity != null) {
+                    // Modifiers due to nutrients
+                    float availablePrimaryNutrient = farmlandTileEntity.getNutrient(primaryNutrient);
+                    float usedPrimaryNutrient = Math.min(growthDelta, availablePrimaryNutrient);
+                    float usedAllNutrients = farmlandTileEntity.consumeAll(growthDelta);
 
-                // Bonus yield due to all nutrients
-                yieldDelta += 0.75f * 0.33f * usedAllNutrients;
+                    // Bonus growth due to primary nutrient
+                    growthDelta += 0.5f * usedPrimaryNutrient;
+
+                    // Bonus yield due to all nutrients
+                    yieldDelta += 0.75f * 0.33f * usedAllNutrients;
+                }
+
+                // Allow growth to exceed 1 to account for death due to age
+                float newGrowth = crop.getGrowth() + growthDelta;
+                float newYield = Math.min(1, crop.getYield() + yieldDelta);
+
+                // Update the crop properties
+                crop.setLastTick(Calendars.SERVER.getTicks());
+                crop.setGrowth(newGrowth);
+                crop.setYield(newYield);
+
+                float targetAge = newGrowth * getMaxAge();
+
+                // Hardcoded crop death due to old age
+                if(targetAge - getMaxAge() > 2)
+                {
+                    onDeath(worldIn, pos, state);
+                }
+                else
+                {
+                    // Finally, update the current block state based on the growth
+                    int age = MathHelper.clamp((int) targetAge, 0, getMaxAge());
+                    if (state.getValue(getAgeProperty()) < getMaxAge() && age == getMaxAge())
+                    {
+                        onMature();
+                    }
+                    worldIn.setBlock(pos, state.setValue(getAgeProperty(), age), 3);
+                }
             }
-
-            float newGrowth = Math.min(1, crop.getGrowth() + growthDelta);
-            float newYield = Math.min(1, crop.getYield() + yieldDelta);
-
-            // Update the crop properties
-            crop.setLastTick(Calendars.SERVER.getTicks());
-            crop.setGrowth(newGrowth);
-            crop.setYield(newYield);
-
-            // Finally, update the current block state based on the growth
-            int age = MathHelper.clamp((int) (newGrowth * getMaxAge()), 0, getMaxAge());
-            if (age == getMaxAge())
+            else
             {
-                onMature();
+                // Unable to grow, but still able to live
             }
-            worldIn.setBlock(pos, state.setValue(getAgeProperty(), age), 3);
-        }
-        else if (canLive())
-        {
-            // Unable to grow, but still able to live
         }
         else
         {
             // Unable to live, so immediately die
+            onDeath(worldIn, pos, state);
         }
     }
 
@@ -298,8 +312,8 @@ public abstract class CropBlock extends CropsBlock implements IHoeOverlayBlock, 
 
     }
 
-    protected void onDeath()
+    protected void onDeath(World worldIn, BlockPos pos, BlockState state)
     {
-
+        worldIn.setBlockAndUpdate(pos, dead.get().defaultBlockState().setValue(DeadCropBlock.MATURE, state.getValue(getAgeProperty()) == getMaxAge()));
     }
 }
