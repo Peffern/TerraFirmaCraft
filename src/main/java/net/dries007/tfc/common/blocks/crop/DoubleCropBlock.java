@@ -118,18 +118,13 @@ public abstract class DoubleCropBlock extends CropBlock
     @Override
     public boolean canSurvive(BlockState state, IWorldReader worldIn, BlockPos pos)
     {
-        final Part part = state.getValue(PART);
-        final BlockState belowState = worldIn.getBlockState(pos.below());
-        if (part == Part.BOTTOM)
+        if (state.getValue(PART) == Part.BOTTOM)
         {
-            if (state.getValue(WILD))
-            {
-                return TFCTags.Blocks.WILD_CROP_GROWS_ON.contains(belowState.getBlock());
-            }
-            return belowState.getBlock() instanceof IFarmlandBlock;
+           return super.canSurvive(state, worldIn, pos);
         }
         else
         {
+            final BlockState belowState = worldIn.getBlockState(pos.below());
             return belowState.is(this) && belowState.getValue(PART) == Part.BOTTOM;
         }
     }
@@ -137,7 +132,7 @@ public abstract class DoubleCropBlock extends CropBlock
     @Override
     public boolean hasTileEntity(BlockState state)
     {
-        return !state.getValue(WILD) && state.getValue(PART) == Part.BOTTOM; // Bottom block is controller for the rest of the crop
+        return super.hasTileEntity(state) && state.getValue(PART) == Part.BOTTOM; // Bottom block is controller for the rest of the crop
     }
 
     @Override
@@ -150,57 +145,34 @@ public abstract class DoubleCropBlock extends CropBlock
     public void growthTick(BlockState state, World worldIn, BlockPos pos, Random rand)
     {
         // Only the bottom part should tick
-        if (state.getValue(getAgeProperty()) < getMaxAge() && state.getValue(PART) == Part.BOTTOM)
+        if (state.getValue(PART) == Part.BOTTOM)
         {
-            // Non-wild crops must be growing on compatible farmland. Update the state of the below farmland first before doing any crop updates.
-            final BlockPos belowPos = pos.below();
-            final BlockState belowState = worldIn.getBlockState(belowPos);
-            final CropTileEntity crop = Helpers.getTileEntityOrThrow(worldIn, pos, CropTileEntity.class);
-            final IFarmlandBlock farmland = (IFarmlandBlock) belowState.getBlock();
-
-            farmland.update(worldIn, belowPos, belowState);
-
-            // Update the crop based on the last time it was ticked
-            // todo: other checks here (temperature, mostly)
-            if (farmland.getMoisture(worldIn, belowPos, belowState) == TFCFarmlandBlock.FLOWING_MOISTURE)
-            {
-                // Valid moisture
-                long tickDelta = Calendars.SERVER.getTicks() - crop.getLastTick();
-                float growthDelta = crop.getGrowthVariation() * tickDelta / DEFAULT_CROP_GROWTH_TICKS;
-                float yieldDelta = growthDelta * 0.25f; // Default yield modifier
-
-                FarmlandTileEntity farmlandTileEntity = Helpers.getTileEntity(worldIn, belowPos, FarmlandTileEntity.class);
-                if (farmlandTileEntity != null)
-                {
-                    // Modifiers due to nutrients
-                    float availablePrimaryNutrient = farmlandTileEntity.getNutrient(primaryNutrient);
-                    float usedPrimaryNutrient = Math.min(growthDelta, availablePrimaryNutrient);
-                    float usedAllNutrients = farmlandTileEntity.consumeAll(growthDelta);
-
-                    // Bonus growth due to primary nutrient
-                    growthDelta += 0.5f * usedPrimaryNutrient;
-
-                    // Bonus yield due to all nutrients
-                    yieldDelta += 0.75f * 0.33f * usedAllNutrients;
-                }
-
-                float newGrowth = Math.min(1, crop.getGrowth() + growthDelta);
-                float newYield = Math.min(1, crop.getYield() + yieldDelta);
-
-                // Update the crop properties
-                crop.setLastTick(Calendars.SERVER.getTicks());
-                crop.setGrowth(newGrowth);
-                crop.setYield(newYield);
-
-                // Finally, update the current block state based on the growth
-                int age = MathHelper.clamp((int) (newGrowth * getMaxAge()), 0, getMaxAge());
-                worldIn.setBlock(pos, state.setValue(getAgeProperty(), age), 3);
-                if (age > maxSingleAge)
-                {
-                    worldIn.setBlock(pos.above(), state.setValue(getAgeProperty(), age).setValue(PART, Part.TOP), 3);
-                }
-            }
+            super.growthTick(state, worldIn, pos, rand);
         }
+    }
+
+    @Override
+    protected void onGrow(World worldIn, BlockPos pos, BlockState state, int age)
+    {
+        if (age > maxSingleAge)
+        {
+            worldIn.setBlock(pos.above(), state.setValue(getAgeProperty(), age).setValue(PART, Part.TOP), 3);
+        }
+        super.onGrow(worldIn, pos, state, age);
+    }
+
+    @Override
+    protected void onDeath(World worldIn, BlockPos pos, BlockState state, boolean mature)
+    {
+        if(mature)
+        {
+           worldIn.setBlockAndUpdate(pos.above(), dead.get().defaultBlockState().setValue(DeadCropBlock.MATURE, true).setValue(PART, Part.TOP));
+        }
+        else
+        {
+            worldIn.setBlockAndUpdate(pos.above(), Blocks.AIR.defaultBlockState());
+        }
+        worldIn.setBlockAndUpdate(pos, dead.get().defaultBlockState().setValue(DeadCropBlock.MATURE, mature).setValue(PART, Part.BOTTOM));
     }
 
     public enum Part implements IStringSerializable

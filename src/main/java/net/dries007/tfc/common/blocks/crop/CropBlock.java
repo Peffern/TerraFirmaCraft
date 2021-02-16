@@ -272,17 +272,16 @@ public abstract class CropBlock extends CropsBlock implements IHoeOverlayBlock, 
                 // Hardcoded crop death due to old age
                 if(targetAge - getMaxAge() > 2)
                 {
-                    onDeath(worldIn, pos, state);
+                    onDeath(worldIn, pos, state, true);
                 }
                 else
                 {
                     // Finally, update the current block state based on the growth
                     int age = MathHelper.clamp((int) targetAge, 0, getMaxAge());
-                    if (state.getValue(getAgeProperty()) < getMaxAge() && age == getMaxAge())
+                    if(state.getValue(getAgeProperty()) < age)
                     {
-                        onMature();
+                        onGrow(worldIn, pos, state, age);
                     }
-                    worldIn.setBlock(pos, state.setValue(getAgeProperty(), age), 3);
                 }
             }
             else
@@ -293,7 +292,7 @@ public abstract class CropBlock extends CropsBlock implements IHoeOverlayBlock, 
         else
         {
             // Unable to live, so immediately die
-            onDeath(worldIn, pos, state);
+            onDeath(worldIn, pos, state, false);
         }
     }
 
@@ -312,8 +311,17 @@ public abstract class CropBlock extends CropsBlock implements IHoeOverlayBlock, 
 
     }
 
-    protected void onDeath(World worldIn, BlockPos pos, BlockState state)
+    protected void onDeath(World worldIn, BlockPos pos, BlockState state, boolean mature)
     {
-        worldIn.setBlockAndUpdate(pos, dead.get().defaultBlockState().setValue(DeadCropBlock.MATURE, state.getValue(getAgeProperty()) == getMaxAge()));
+        worldIn.setBlockAndUpdate(pos, dead.get().defaultBlockState().setValue(DeadCropBlock.MATURE, mature));
+    }
+
+    protected void onGrow(World worldIn, BlockPos pos, BlockState state, int age)
+    {
+        worldIn.setBlock(pos, state.setValue(getAgeProperty(), age), 3);
+        if(age == getMaxAge())
+        {
+            onMature();
+        }
     }
 }
